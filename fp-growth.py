@@ -114,7 +114,7 @@ class FG_Growth():
                         res.append(tmp)
             buffer = list(buffer_set)
         res = [list(i) for i in res]
-        
+
         return res
 
     def get_fp(self):
@@ -128,6 +128,7 @@ class FG_Growth():
                 ptr.update_conditional_value()
             c_pattern = []
             for ptr in head_table[item]:
+                while ptr.
                 tmp = ptr.get_conditional_pattern(self.confidence)
                 tmp = [[i] for i in tmp]
                 tmp = self._make_pattern(tmp)
