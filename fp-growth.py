@@ -1,39 +1,11 @@
-import copy
-
 class Node():
-    def __init__(self, item=None):
+    def __init__(self, item=None, value=1):
         self.item = item
-        self.value = 0
+        self.value = value
         self.c_value = 0 # conditional_value
+        self.tree_idx = 0
         self.parent = None
         self.children = {} # children mapper: item -> Node
-
-    # return the child Node of item
-    def _get_child(self, item):
-        global head_table
-        assert item in head_table, "Not found error, the item should be in head_table"
-
-        if item in self.children:
-            return self.children[item]
-
-        # add a new node
-        new_child = Node(item)
-        new_child.parent = self
-        self.children[item] = new_child
-        head_table[item].append(new_child)
-
-        return new_child
-
-    # tran: sorted list of item, excludes self.item
-    # return the node at end of the transaction
-    def add_transaction(self, tran):
-        self.value += 1
-        # if current node is a leaf node
-        if len(tran) == 0:
-            return self
-        child_node = self._get_child(tran[0])
-
-        return child_node.add_transaction(tran[1:])
 
     def reset_conditional_value(self):
         self.c_value = 0
@@ -53,85 +25,167 @@ class Node():
 
         return
 
-    def get_conditional_pattern(self, confidence):
-        pattern = []
+    def mark_subtree(self, support, tree_idx):
         ptr = self.parent
+        while ptr:
+            if ptr.c_value >= support:
+                self.tree_idx = tree_idx
+
+        return
+
+    # return list of items with support
+    def traversal(self, tree_idx):
+        item_list, conf_list = [], []
+        # bfs
+        queue, ptr = [self], 0
+        while ptr < len(queue):
+            is_leaf = 1
+            for node in queue[ptr].children:
+                if node.tree_idx == tree_idx:
+                    queue.append(node)
+                    is_leaf = 0
+            if is_leaf:
+                item_list.append(queue[ptr].get_conditional_pattern)
+                conf_list.append(queue[ptr].c_value)
+
+        return item_list, conf_list
+
+    def get_conditional_pattern(self):
+        pattern = []
         while ptr.item: # root.item == None
-            if ptr.c_value >= confidence:
-                pattern.append(ptr.item)
+            pattern.append(ptr.item)
             ptr = ptr.parent
-        # reverse pattern by frequency
+        # reverse pattern
         pattern = pattern[::-1]
 
         return pattern
 
-def test_node():
-    root = Node()
-    root.add_transaction([1,2,3])
-    root.add_transaction([1,2,3,4,5])
-    root.add_transaction([1,2])
-
-head_table = None
 
 # transactions: iterable object of lists, each transaction represent one transaction
-class FG_Growth():
-    def __init__(self, transactions, confidence=10):
-        global head_table
+class FP_Tree():
+    tree_idx = 0
 
+    # from transactions, build the FP-Tree and the corresponding self.head_table
+    def __init__(self, transactions, num_list=None, support=10, is_main_tree=True):
+        if num_list is None:
+            num_list = [1 for _ in range(len(transactions))]
         self.root = Node()
-        self.confidence = confidence
-        self.transactions = [list(set(tran)) for tran in transactions]
-        self.counter = {}
+        self.support = support
+        self.head_table = {}
 
-        for tran in self.transactions:
-            for item in tran:
-                self.counter[item] = self.counter.get(item, 0) + 1
+        # sort transactions if it's the main FP-Tree
+        if not is_main_tree:
+            transactions = [list(set(tran)) for tran in transactions]
+            self.counter = {}
+            for idx, tran in self.transactions:
+                for item in tran:
+                    self.counter[item] = self.counter.get(item, 0) + num_list[idx]
 
-        self.freq_item = [[item, self.counter[item]] for item in self.counter if self.counter[item] >= self.confidence]
-        self.sorted_freq = sorted(self.freq_item, key=lambda x:x[1], reverse=True)
+            self.freq_item = [[item, self.counter[item]] for item in self.counter if self.counter[item] >= self.support]
+            self.sorted_freq = sorted(self.freq_item, key=lambda x:x[1], reverse=True)
 
-        # rank_map: item -> rank
-        self.rank_map = {item[0]:rank for rank, item in self.sorted_freq}
-        # make head_table
-        head_table = {item[0]:[] for item in self.freq_item}
+            # filter non-frequent items from head_table
+            # rank_map: item -> rank
+            self.rank_map = {item[0]:rank for rank, item in self.sorted_freq}
+            transactions = [sorted(tran, key=lambda x: self.rank_map[x]) for tran in transactions]
+        else:
+            # make head_table
+            for tran in transactions:
+                for item in tran:
+                    if item not in self.head_table:
+                        self.head_table[item] = []
 
-        for tran in self.transactions:
-            self.root.add_transaction(tran)
+        for idx, tran in enumerate(transactions):
+            self._add_transaction(tran, num_list[idx])
 
-    # l: [[item_1, imte_2], ...]
-    def _make_pattern(self, l):
-        res = copy.deepcopy(l)
-        buffer = copy.deepcopy(l)
-        lenght = 1
-        while buffer:
-            lenght += 1
-            buffer_set = set()
-            for i in range(len(buffer)):
-                for j in range(i + 1, len(buffer)):
-                    tmp = tuple(set(buffer[i] + buffer[j]))
-                    if len(tmp) == lenght and tmp not in buffer_set:
-                        buffer_set.add(tmp)
-                        res.append(tmp)
-            buffer = list(buffer_set)
-        res = [list(i) for i in res]
+    # tran: sorted list of item, excludes self.item
+    # number: int, number of repeated transaction
+    def _add_transaction(self, tran, number):
+        idx = 0
+        ptr = self.root # current node
+        while idx < len(tran):
+            item = tran[idx]
+            if item in ptr.children:
+                ptr = ptr.children[item]
+                ptr.value += number
+                idx += 1
+            else:
+                # add a new node
+                new_node = Node(item, number)
+                new_node.parent = ptr
+                ptr.children[item] = new_node
+                # update head table
+                self.head_table[item].append(new_node)
+                ptr = new_node
+                idx += 1
 
-        return res
+        return
 
-    def get_fp(self):
-        global head_table
+    def _generate_combination(self, items, conf):
+        assert len(items) == len(conf)
 
+        def _dfs(l1, l2):
+            if len(l1) > 1:
+                res_1, res_2 = _dfs(l1[1:], l2[1:])
+                for i in range(len(res_1)):
+                    res_1.append([l1[0]] + res_1[i])
+                    res_2.append([l2[0]] + res_2[i])
+                return res_1, res_2
+            elif len(l1) == 1:
+                return [ [l1[0]] ], [ [l2[0]] ]
+            else:
+                return [], []
+
+        patterns, confs = _dfs(items, conf)
+        confs = [min(i) for i in confs]
+
+        return patterns, confs
+
+    # return: return patterns including the given item with support
+    def _make_pattern(self, item):
+        # for each item in self.head_table, following steps are taken to get frequent patterns:
+        # 1. reset_conditional_value, from bottom to top
+        # 2. update_conditional_value, from bottom to top
+        # 3. make sub FG-Tree from root by masking (marked with sub-tree index), from bottom to top
+        # 4. generate transactions from sub-tree
+        # 5. check if the sub-tree only exist one path, go 5-1 if yes, otherwise go 5-2
+        # 5-1. generate combination patterns from one item list. Return results
+        # 5-2. get transactions from sub-tree with transaction count.
+        # 6. build new FP-tree and new_tree_root.get_pattern()
+        # 7. append subfix patterns. Return results
+        for node in self.head_table[item]:
+            node.reset_conditional_value()
+        for node in self.head_table[item]:
+            node.update_conditional_value()
+
+        # step 3
+        FP_Tree.tree_idx += 1
+        for node in self.head_table[item]:
+            node.mark_subtree(self.support, FP_Tree.tree_idx)
+
+        # step 4
+        for node in self.head_table[item]:
+            tran_list, conf_list = node.traversal(FP_Tree.tree_idx)
+
+            if len(item_list) <= 1:
+                pass
+            else:
+                new_tree = FP_Tree(tran_list, conf_list, self.support, False)
+                res, conf = new_tree.get_pattern()
+                res = [i + [node.item] for i in res]
+
+        return res, conf
+
+    # get patterns with given support
+    # return: list of lists [[item1, item2, ...], support_count], sorted by tuple (pattern_len, -support_count) with ascending order
+    def get_pattern(self):
         patterns = []
-        for item in head_table:
-            for ptr in head_table[item]:
-                ptr.reset_conditional_value()
-            for ptr in head_table[item]:
-                ptr.update_conditional_value()
-            c_pattern = []
-            for ptr in head_table[item]:
-                while ptr.
-                tmp = ptr.get_conditional_pattern(self.confidence)
-                tmp = [[i] for i in tmp]
-                tmp = self._make_pattern(tmp)
-                if len(tmp) > 0:
-                    tmp = [i + [ptr.item] for i in tmp]
-                    c_pattern += tmp
+        confs = []
+        for item in self.head_table:
+            res, conf = self._make_pattern(item)
+            patterns.append(res)
+            confs.append(conf)
+
+        return patterns, confs
+
+tree = FP_Tree([[1,2,3], [1,2,3,4,5], [1,2]])
