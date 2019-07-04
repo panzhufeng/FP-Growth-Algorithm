@@ -5,7 +5,7 @@ The implementation correctness has been verified with the [Apriori algorithm in 
 
 <img src="fig/run_time.png" width="400" height="300" class="center">
 
-## Features:
+## Features
 - Unit test, verify found patterns with Apriori algorithm
 - Support mining the patterns in parallel
 
