@@ -67,7 +67,7 @@ class TestFPTree(unittest.TestCase):
         self.assertEqual(len(apriori_result), len(fp_result))
         for idx in range(len(apriori_result)):
             self.assertEqual(apriori_result[idx][0], fp_result[idx][0])
-            self.assertTrue(abs(apriori_result[idx][1] * len(dataset) - fp_result[idx][1]) <= 1) #  allow the inaccuracy in float point calculation
+            self.assertTrue(round(apriori_result[idx][1] * len(dataset)) == fp_result[idx][1]) # float point calculation error
 
     def test_testify_apriori_small_dataset(self):
         dataset = [['1', '2', '3', '4', '5', '6'],
