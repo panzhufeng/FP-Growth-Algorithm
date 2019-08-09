@@ -7,7 +7,7 @@ The implementation correctness has been verified with the [Apriori algorithm in 
 
 ## Features
 - Unit test, verify found patterns with Apriori algorithm
-- Support mining the patterns in parallel
+- Support mining the patterns in parallel [to-do]
 
 ## Example
 
@@ -26,7 +26,7 @@ Return:
 """
 
 dataset = [[1, 2, 3, 4], [1, 2, 3], [1, 3], [1], [4]]
-fps = fp_growth(dataset, min_support=0.6, use_log=False, n_jobs=1)
+fps = fp_growth(dataset, min_support=0.6, use_log=False)
 print(fps)
 ```
 Output:
@@ -35,6 +35,3 @@ Output:
  ([3], 3), 
  ([1, 3], 3)]
 ```
-
-## Notes
-The performance of mining patterns in parallel heavily depends on the number of items and *min_support*.
